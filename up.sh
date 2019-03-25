@@ -8,7 +8,7 @@ source env.sh
 
 mkdir -p app
 
-cp WCFSelfHost/WCFSelfHost/bin/Debug/WCFSelfHost.exe app/
+cp WCFSelfHost/WCFSelfHost/bin/Debug/* app/
 
 cf push $APP_NAME -p app/ -c WCFSelfHost.exe --no-start --no-route -b binary_buildpack -s windows2016 -u port 
 

@@ -48,9 +48,30 @@ namespace SelfHost
     {
         static void Main()
         {
+            var builder = new ConfigurationBuilder().AddCloudFoundry();
+            var config = builder.Build();
+            var opts = new CloudFoundryApplicationOptions();
+            var appSection = config.GetSection(CloudFoundryApplicationOptions.CONFIGURATION_PREFIX);
+            appSection.Bind(opts);
+
+            var appRouteHostAndExternalPort = opts.ApplicationUris.FirstOrDefault().Split(':');
+
+            var appRouteHost = appRouteHostAndExternalPort.ElementAtOrDefault(0);
+            var appExternalPort = appRouteHostAndExternalPort.ElementAtOrDefault(1);
+
+            if (appRouteHost == "" || appExternalPort == "")
+            {
+                throw new System.ArgumentException("Invalid VCAP_APPLICATION route or port");
+            }
+            if (appExternalPort != opts.Port.ToString())
+            {
+                throw new System.ArgumentException($"Route External port must match internal port: {appExternalPort} != {opts.Port}");
+            }
+            Console.WriteLine($"URI: {appRouteHost}:{appExternalPort}");
+
 
             // net.tcp://192.168.28.6:10040/example/service
-            var baseAddress = new Uri("net.tcp://tcp.beaumont.cf-app.com:1111/example/service");
+            var baseAddress = new Uri($"net.tcp://{appRouteHost}:{appExternalPort}/example/service");
             //var baseAddress = new Uri("http://tcp.beaumont.cf-app.com:1111/example/service");
 
             var svcHost = new ServiceHost(typeof(WcfEntryPoint), baseAddress);
