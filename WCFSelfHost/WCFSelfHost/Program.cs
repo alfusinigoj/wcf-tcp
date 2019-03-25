@@ -55,7 +55,6 @@ namespace SelfHost
             appSection.Bind(opts);
 
             var appRouteHostAndExternalPort = opts.ApplicationUris.FirstOrDefault().Split(':');
-
             var appRouteHost = appRouteHostAndExternalPort.ElementAtOrDefault(0);
             var appExternalPort = appRouteHostAndExternalPort.ElementAtOrDefault(1);
 
@@ -63,6 +62,7 @@ namespace SelfHost
             {
                 throw new System.ArgumentException("Invalid VCAP_APPLICATION route or port");
             }
+
             if (appExternalPort != opts.Port.ToString())
             {
                 throw new System.ArgumentException($"Route External port must match internal port: {appExternalPort} != {opts.Port}");
@@ -70,9 +70,7 @@ namespace SelfHost
             Console.WriteLine($"URI: {appRouteHost}:{appExternalPort}");
 
 
-            // net.tcp://192.168.28.6:10040/example/service
             var baseAddress = new Uri($"net.tcp://{appRouteHost}:{appExternalPort}/example/service");
-            //var baseAddress = new Uri("http://tcp.beaumont.cf-app.com:1111/example/service");
 
             var svcHost = new ServiceHost(typeof(WcfEntryPoint), baseAddress);
 
@@ -85,24 +83,9 @@ namespace SelfHost
             ServiceDebugBehavior debug = svcHost.Description.Behaviors.Find<ServiceDebugBehavior>();
             debug.IncludeExceptionDetailInFaults = true;
 
-            //var netTcpBinding = new NetHttpBinding();
-
             var netTcpBinding = new NetTcpBinding(SecurityMode.None);
-            //netTcpBinding.CloseTimeout = new TimeSpan(0, 15, 0);
-            //netTcpBinding.ReceiveTimeout = new TimeSpan(0, 15, 0);
-            //netTcpBinding.MaxReceivedMessageSize = 2147483647;
-            //netTcpBinding.MaxBufferSize = 2147483647;
-            //netTcpBinding.HostNameComparisonMode = HostNameComparisonMode.WeakWildcard;
-            //netTcpBinding.Security.Mode = SecurityMode.None;
-            //netTcpBinding.Security.Transport.ClientCredentialType = TcpClientCredentialType.None;
-            //netTcpBinding.Security.Transport.ProtectionLevel = System.Net.Security.ProtectionLevel.None;
-            //netTcpBinding.Security.Message.ClientCredentialType = MessageCredentialType.None;
-            //netTcpBinding.OpenTimeout = TimeSpan.FromMinutes(2);
-            //netTcpBinding.SendTimeout = TimeSpan.FromMinutes(2);
-            //netTcpBinding.ReceiveTimeout = TimeSpan.FromMinutes(10);
 
             ServiceMetadataBehavior smb = new ServiceMetadataBehavior();
-            //smb.HttpGetEnabled = true;
             svcHost.Description.Behaviors.Add(smb);
 
             svcHost.AddServiceEndpoint(
@@ -121,7 +104,6 @@ namespace SelfHost
             Console.WriteLine($"svcHost is {svcHost.State}.  Press enter to close.");
 
             Thread.Sleep(Timeout.Infinite);
-            //Console.ReadLine();
             svcHost.Close();
         }
     }
