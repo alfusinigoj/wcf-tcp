@@ -15,33 +15,18 @@ namespace SelfHost
     public interface IHelloWorld
     {
         [OperationContract]
-        void HelloWorld();
-
+        string Hello();
     }
 
-    [ServiceContract]
-    public interface IWriteMe
-    {
-        [OperationContract]
-        void WriteMe(string text);
-    }
 
-    public partial class WcfEntryPoint : IHelloWorld
+    public class HelloWorld : IHelloWorld
     {
-        public void HelloWorld()
+        public string Hello()
         {
             Console.WriteLine("Hello World!");
+            return Environment.GetEnvironmentVariable("CF_INSTANCE_INDEX");
         }
 
-    }
-
-    public partial class WcfEntryPoint : IWriteMe
-    {
-
-        public void WriteMe(string text)
-        {
-            Console.WriteLine($"WriteMe: {text}");
-        }
     }
 
     class Program
@@ -57,46 +42,53 @@ namespace SelfHost
             var appRouteHostAndExternalPort = opts.ApplicationUris.FirstOrDefault().Split(':');
             var appRouteHost = appRouteHostAndExternalPort.ElementAtOrDefault(0);
             var appExternalPort = appRouteHostAndExternalPort.ElementAtOrDefault(1);
+            var appInternalPort = opts.Port.ToString();
 
             if (appRouteHost == "" || appExternalPort == "")
             {
                 throw new System.ArgumentException("Invalid VCAP_APPLICATION route or port");
             }
 
-            if (appExternalPort != opts.Port.ToString())
+            if (appInternalPort != appExternalPort)
             {
-                throw new System.ArgumentException($"Route External port must match internal port: {appExternalPort} != {opts.Port}");
+                throw new System.ArgumentException($"Internal listening port must match External Route port : {appInternalPort} != {appExternalPort}");
             }
-            Console.WriteLine($"URI: {appRouteHost}:{appExternalPort}");
+            Console.WriteLine($"URI: {appRouteHost}:{appInternalPort}");
 
 
-            var baseAddress = new Uri($"net.tcp://{appRouteHost}:{appExternalPort}/example/service");
+            var baseAddress = new Uri($"net.tcp://{appRouteHost}:{appInternalPort}/example/service");
 
-            var svcHost = new ServiceHost(typeof(WcfEntryPoint), baseAddress);
-
-            ServiceThrottlingBehavior throttlingBehavior = new ServiceThrottlingBehavior();
-            throttlingBehavior.MaxConcurrentCalls = Int32.MaxValue;
-            throttlingBehavior.MaxConcurrentInstances = Int32.MaxValue;
-            throttlingBehavior.MaxConcurrentSessions = Int32.MaxValue;
-            svcHost.Description.Behaviors.Add(throttlingBehavior);
+            var svcHost = new ServiceHost(typeof(HelloWorld), baseAddress);
 
             ServiceDebugBehavior debug = svcHost.Description.Behaviors.Find<ServiceDebugBehavior>();
             debug.IncludeExceptionDetailInFaults = true;
 
-            var netTcpBinding = new NetTcpBinding(SecurityMode.None);
+            var netTcpBinding = new NetTcpBinding();
+            netTcpBinding.Security.Mode = SecurityMode.None;
+
+            BindingElementCollection bindingElementCollection = netTcpBinding.CreateBindingElements();
+            TcpTransportBindingElement transport = bindingElementCollection.Find<TcpTransportBindingElement>();
+            transport.ConnectionPoolSettings.IdleTimeout = TimeSpan.Zero;
+            transport.ConnectionPoolSettings.LeaseTimeout = TimeSpan.Zero;
+            transport.ConnectionPoolSettings.MaxOutboundConnectionsPerEndpoint = 0;
+
+            CustomBinding balancedTcpBinding = new CustomBinding();
+            balancedTcpBinding.Elements.AddRange(bindingElementCollection.ToArray());
+            balancedTcpBinding.Name = "NetTcpBinding";
+
 
             ServiceMetadataBehavior smb = new ServiceMetadataBehavior();
             svcHost.Description.Behaviors.Add(smb);
 
             svcHost.AddServiceEndpoint(
                 ServiceMetadataBehavior.MexContractName,
-                netTcpBinding,
+                balancedTcpBinding,
                 "mex"
             );
 
             svcHost.AddServiceEndpoint(
                 typeof(IHelloWorld),
-                netTcpBinding,
+                balancedTcpBinding,
                 "IHelloWorld"
             );
 
